@@ -21,7 +21,7 @@ Password: *****
 
 <Command>
 <Name>get_instantaneous_demand</Name>
-<MacId>0xd8d5b90000005a54</MacId>
+<MacId>0x****************</MacId>
 </Command>
 
    The POST Response has the data and looks like this:
