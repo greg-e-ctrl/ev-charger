@@ -1,6 +1,6 @@
 # ev-charger
 
-I have a plugin electric vehicle (EV) and solar panels on my roof that typically generate more than I use so I push it back to the grid for credit. I created an app that runs 24/7 to determine if and when my electric vehicle's charger should be turned on or off based on the lowest cost of electricity and turn on or off the EV charger accordingly. This is accomplished by reading the house electric meter's current draw, add how much the electric vehicle's charge current to it and then do the following comparison:
+I have a plugin electric vehicle (EV) and solar panels on my roof that typically generate more than I use so I push it back to the grid for credit. I created an app that runs 24/7 (sampling every 2 mins) to determine if and when my electric vehicle's charger should be turned on or off based on the lowest cost of electricity and turn on or off the EV charger accordingly. This is accomplished by reading the house electric meter's current draw, add how much the electric vehicle's charge current to it and then do the following comparison:
 	If the solar array is producing more than the house is using plus how much the electric vehicle charger uses, then turn the 		charger on. Otherwise, turn it off and wait to turn it on when the time period of electricity cost is at the least expensive 		rate tier.
 
 APIs:
