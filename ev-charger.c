@@ -1,92 +1,58 @@
 /*****************************************************************************
  *                                                                           *
- * Copyright (C) 2016, Greg Stevens, <greg@e-ctrl.com>                       *
+ * Copyright (C) 2016-2021, Greg Stevens, <greg@e-ctrl.com>                  *
  *                                                                           *
  * You may opt to use, copy, modify, merge, publish, distribute and/or sell  *
  * copies of this Software, and permit persons to whom this Software is      *
  * furnished to do so.                                                       *
  *                                                                           *
  * This Software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY *
- * KIND, either express or implied.                                          *
+ * KIND, either expressed or implied.                                        *
  *                                                                           *
  *****************************************************************************
 
 Description:
 
-	This app will continuously run to determine if and when the electric vehicle's (EV) charger switch should be
-	turned on or off based on the lowest cost of electricity at the time, and turn on or off the EV charger switch accordingly.
-	This is accomplished by acquiring the house electric meter's reading, adding the EV's charge current and then apply
-	the following comparison:
+	This app will continuously run (samples every 2 minutes - customizable) to determine if and
+	when the electric vehicle's (EV) charger switch should be turned on or off based on the
+	lowest cost of electricity at the time, and turn on or off the EV charger switch accordingly.
+	This is accomplished by acquiring the house electric meter's reading, adding the EV's charge
+	current and then apply the following comparison:
 
-
-	If the solar array is producing more than the house is using plus how much the electric vehicle charger uses,
-	then turn the charger on, else, turn it off and wait until the time period of when the electricity
-	provider is at its least expensive rate tier.
+	If the solar array is producing more than the house is using plus how much the electric vehicle
+	charger uses, then turn the charger on, otherwise, turn it off and wait until the time period of
+	when the grid is at its least expensive rate time period.
 	
 	The app will also send email and/or text message when and why the EV charger switch changes state.
 	
-	Also note that this app could be used for pool pumps, pool heaters, solar water heater pumps, etc. !
-	Basically, anything that draws a lot of current and that you want to ensure it only turns on when the
-	electricity is either free (solar is generating more than you are using) or at the least expensive tier/rate.
+	Also note that this app can be used for pool pumps, pool heaters, solar water heater pumps, etc.
+	Basically, anything that draws a lot of current and you want to ensure it only turns on when the
+	electricity is either free (solar is generating more than it is using) or at the least expensive
+	tier/rate.
 
 APIs:
 
-* Use this to read the house electric meter:
-https://rainforestautomation.com/wp-content/uploads/2015/07/EAGLE_REST_API-1.1.pdf
-
-	The HTTP POST command looks like this:
-
-Host: https://rainforestcloud.com/cgi-bin/post_manager
-Content-Type: text/xml
-Cloud-Id: *****
-User: *********
-Password: *********
-
-	The POST Body looks like this:
-
-<Command>
-<Name>get_instantaneous_demand</Name>
-<MacId>0x****************</MacId>
-</Command>
-
-   The POST Response has the data and looks like this:
-
-<InstantaneousDemand>
-<DeviceMacId>0x00158d0000000004</DeviceMacId>
-<MeterMacId>0x00178d0000000004</MeterMacId>
-<TimeStamp>0x185adc1d</TimeStamp>
-<Demand>0x001738</Demand>
-<Multiplier>0x00000001</Multiplier>
-<Divisor>0x000003e8</Divisor>
-<DigitsRight>0x03</DigitsRight>
-<DigitsLeft>0x00</DigitsLeft>
-<SuppressLeadingZero>Y</SuppressLeadingZero>
-</InstantaneousDemand>
-
-   The actual Demand value is calculated by using the multiplier and divisor:
-   5944 x 1 / 1000 = 5.944
-   If the multiplier or divisor is zero then use a value of one instead.
+* Use this to read the house electric meter via the Rainforest gateway:
+https://rainforestautomation.com/wp-content/uploads/2017/02/EAGLE-200-Local-API-Manual-v1.0.pdf
 
 * Use this to turn on/off the Insteon wall outlet that the electric vehicle's charger is plugged into:
 http://www.smarthome.com.au/smarthome-blog/insteon-hub-http-commands/
 Use this to list the hubs on your LAN: http://connect.insteon.com/getinfo.asp Can use either a HUB1 or a HUB2.
-My HUB2's IP address:    http://192.168.1.35:25105
-To turn on top plug:     http://username:password@192.168.1.14:25106/3?0262418C4B0F3201=I=3
-To turn off top plug:    http://username:password@192.168.1.14:25106/3?0262418C4B0F3301=I=3
-To turn on bottom plug:  http://username:password@192.168.1.14:25106/3?0262418C4B0F3202=I=3  My EV charger is plugged into the bottom plug.
-To turn off bottom plug: http://username:password@192.168.1.14:25106/3?0262418C4B0F3302=I=3
+My Insteon HUB2's IP address: http://192.168.1.3:port
+To turn on bottom plug:  http://user:password@192.168.1.3:port/3?0262418C4B0F3202=I=3  My EV charger is plugged into the bottom plug.
+To turn off bottom plug: http://user:password@192.168.1.3:port/3?0262418C4B0F3302=I=3
 
-To turn the Rainforest gateway switch on/off:
-To turn on:  http://username:password@192.168.1.14:25106/3?02623765240F12FF=I=3
-To turn off: http://username:password@192.168.1.14:25106/3?02623765240F1400=I=3
+Use Curl to talk to the above API's RESTful interfaces: https://curl.haxx.se/libcurl/c
 
-Use this to talk to the APIs REST interfaces: https://curl.haxx.se/libcurl/c
+Use GNU toolchain; command line to compile:
+gcc -Wall -ggdb3 ev-charger.c -oev-charger.exe -Lc:/cygwin/bin -lcygcurl-4 -Ic:/Users/Admin/Desktop/ev-charger/curl/include
 
-Use this command line to compile:
-gcc -Wall -ggdb3 ev-charger.c -oev-charger.exe -Lc:/cygwin/bin -lcygcurl-4 -Ic:/ev-charger/curl/include
+Use gdb to debug.
+Use strip to clean for production.
 
 */
 
+/* Include the needed libraries */
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -94,6 +60,7 @@ gcc -Wall -ggdb3 ev-charger.c -oev-charger.exe -Lc:/cygwin/bin -lcygcurl-4 -Ic:/
 #include <time.h>
 #include <curl/curl.h>
 
+/* Define constants used */
 #define DEBUG 0 /* 1 = Print debug info, 0 = Do not print debug info */
 
 #define SLEEP_SECONDS 120 /* Time to wait in seconds before again checking to see if need to switch the EV charger switch on or off */
@@ -105,11 +72,29 @@ gcc -Wall -ggdb3 ev-charger.c -oev-charger.exe -Lc:/cygwin/bin -lcygcurl-4 -Ic:/
 
 #define SWITCHING_THRESHOLD 0 /* If current house + EV_CHARGING_CURRENT draw is less than this then turn the EV charger switch on */
 
-#define EMAIL "foobar@gmail.com"
-#define PWD "********"
-#define TEXT "1234567890@vtext.com"
+/* To send email/txt message notifications of state changes */
+#define GMAIL_SERVER "smtps://smtp.gmail.com"
+#define USER "email@gmail.com"
+#define PWD "password"
+#define TO "mobilenumber@vtext.com"
+#define FROM "email@gmail.com"
 
-#define HUB2 2
+/* To talk to the Rainforest gateway */
+#define RAINFOREST "http://192.168.1.4/cgi-bin/post_manager" // Eagle 200 URL
+#define CONTENT_TYPE "Content-Type: text/xml"
+#define USERNAME "nnnnnn" // Cloud ID is username
+#define PASSWORD "nnnnnnnnnnnnnnnn" // Install Code is password
+
+/* The POST body to read the hardware address of the meter */
+static const char *ha_post_body = "<Command><Name>device_list</Name></Command>";
+
+/* The POST body to read the InstantaneousDemand of the meter */
+static const char *meter_post_body_pre = "<Command><Name>device_query</Name><DeviceDetails><HardwareAddress>";
+static const char *meter_post_body_suf = "</HardwareAddress></DeviceDetails><Components><Component><Name>Main</Name><Variables><Variable><Name>zigbee:InstantaneousDemand</Name></Variable></Variables></Component></Components></Command>";
+
+/* The URLs to turn on and off the wall plug bottom outlet */
+static const char *switch_on_url =   "http://user:password@192.168.1.3:port/3?0262418C4B0F3202=I=3"; // The bottom outlet that my EV charger is plugged into
+static const char *switch_off_url =  "http://user:password@192.168.1.3:port/3?0262418C4B0F3302=I=3";
 
 enum { /* Modes of EV charger */
    OFF,
@@ -118,20 +103,19 @@ enum { /* Modes of EV charger */
    OFF_ERROR,
    ON_VC,
    ON_VC_ERROR,
+   ON_METER,
    OFF_CURRENT,
    OFF_VALUE,
-   OFF_STARTUP,
-   REBOOT_GATEWAY_TIMEOUT,
-   REBOOT_GATEWAY_UNAVAILABLE
+   ON_STARTUP,
 };
 
+/* The POST body to read the Instantaneous Demand value */
+char meter_post_body[300];
+char hardware_address[19];
+
+int get_hardware_address();
 int get_meter_reading();
-
-int switch_charger(int mode, int top, int hub);
-
-void turn_gateway_on(int hub);
-void turn_gateway_off(int hub);
-
+int switch_charger(int mode);
 void sendmail(int event);
 
 char *parse_buffer = NULL;
@@ -141,118 +125,94 @@ double actual_demand = 0;
 time_t mytime;
 struct tm * timeinfo;
 
-const char *meter_post_body = "\r\n<Command>\r\n<Name>get_instantaneous_demand</Name>\r\n<MacId>0xd8d5b90000005a54</MacId>\r\n</Command>\r\n";
-
-const char *switch_on_url =    "http://username:password@192.168.1.14:25106/3?0262418C4B0F3202=I=3";
-const char *switch_on_url2 =   "http://username:password@192.168.1.35:25105/3?0262418C4B0F3202=I=3";
-const char *switch_off_url =   "http://username:password@192.168.1.14:25106/3?0262418C4B0F3302=I=3";
-const char *switch_off_url2 =  "http://username:password@192.168.1.35:25105/3?0262418C4B0F3302=I=3";
-const char *gateway_off_url =  "http://username:password@192.168.1.14:25106/3?02623765240F1400=I=3";
-const char *gateway_off_url2 = "http://username:password@192.168.1.35:25105/3?02623765240F1400=I=3";
-const char *gateway_on_url =   "http://username:password@192.168.1.14:25106/3?02623765240F12FF=I=3";
-const char *gateway_on_url2 =  "http://username:password@192.168.1.35:25105/3?02623765240F12FF=I=3";
-/* The top outlet */
-const char *switch_on_top_url =  "http://username:password@192.168.1.14:25106/3?0262418C4B0F3201=I=3";
-const char *switch_on_top_url2 = "http://username:password@192.168.1.35:25105/3?0262418C4B0F3201=I=3";
-
 char reading[30]; // Buffer used to parse meter reading string into for emails
 
 static const char *payload_text_on[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
   "Subject: EV Charger Switch Turned On\r\n",
   "\r\n", /* Empty line to divide headers from body, see RFC5322 */
-  "Turned the EV charger switch on as the solar panels are generating more than the house usage plus the EV charger usage.\r\n",
+  "Turned EV charger switch on as the solar panels are generating more than the house usage plus the EV charger usage.\r\n",
   "\r\n",
   NULL
 };
 
 static const char *payload_text_off_current[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
   "Subject: EV Charger Switch Turned Off\r\n",
   "\r\n",
-  "Turned the EV charger switch off as the combined current usage plus the EV charger usage is more than 0 kW.\r\n",
+  "Turned EV charger switch off as the house usage plus the EV charger usage is more than 0 kW.\r\n",
   "\r\n",
   NULL
 };
 
 static const char *payload_text_off_value[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
   "Subject: EV Charger Switch Turned Off\r\n",
   "\r\n",
-  "Turned the EV charger switch off as it is not in PG&E's lowest cost tier's time period.\r\n",
+  "Turned EV charger switch off as it is not in PG&E's lowest cost tier.\r\n",
   "\r\n",
   NULL
 };
 
-static const char *payload_text_off_startup[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
+static const char *payload_text_on_startup[] = {
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
   "Subject: EV Charger Starting\r\n",
   "\r\n",
-  "Turned the gateway switch on and the EV charger switch off at startup. Waiting 60 secs. before the first meter reading to allow the gateway to boot up.\r\n",
+  "Turned EV charger switch on at startup. Waiting 60 secsonds before first meter reading to allow it to boot.\r\n",
   "\r\n",
   NULL
 };
 
 static const char *payload_text_on_error[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
   "Subject: EV Charger Error Turning On\r\n",
   "\r\n",
-  "Could not turn the EV charger switch on.\r\n",
+  "Could not turn EV charger switch on.\r\n",
   "\r\n",
   NULL
 };
 
 static const char *payload_text_off_error[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
   "Subject: EV Charger Error Turning Off\r\n",
   "\r\n",
-  "Could not turn the EV charger switch off.\r\n",
+  "Could not turn EV charger switch off.\r\n",
   "\r\n",
   NULL
 };
 
 static const char *payload_text_on_vc[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
-  "Subject: EV Charger Turned On\r\n",
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
+  "Subject: EV Charger Switch Turned On\r\n",
   "\r\n",
-  "Turned the EV charger switch on as it is now in PG&E's lowest cost tier's time period.\r\n",
+  "Turned EV charger switch on as it is now in PG&E's lowest cost tier.\r\n",
   "\r\n",
   NULL
 };
 
 static const char *payload_text_on_vc_error[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
   "Subject: EV Charger Error Turning On\r\n",
   "\r\n",
-  "Could not turn the EV charger switch on during PG&E's lowest cost tier's time period.\r\n",
+  "Could not turn EV charger switch on during PG&E's lowest cost tier.\r\n",
   "\r\n",
   NULL
 };
 
-static const char *payload_text_reboot_timeout[] = { 
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
-  "Subject: EV Charger Rebooted Gateway - Request Timeout\r\n",
+static const char *payload_text_on_meter[] = {
+  "To: " TO "\r\n",
+  "From: " FROM " (Greg Stevens)\r\n",
+  "Subject: EV Charger Switch Turn On - couldn't read meter\r\n",
   "\r\n",
-  "Rebooted the gateway since a Request Timeout response was received.\r\n",
-  "\r\n",
-  NULL
-};
-
-static const char *payload_text_reboot_unavailable[] = {
-  "To: " EMAIL "\r\n",
-  "From: " EMAIL "(Greg Stevens)\r\n",
-  "Subject: EV Charger Rebooted Gateway - Service Unavailable\r\n\r\n",
-  "\r\n",
-  "Rebooted the gateway since a Service Unavailable response was received.\r\n",
+  "Turned EV charger switch on due to failure reading meter.\r\n",
   "\r\n",
   NULL
 };
@@ -271,100 +231,88 @@ static size_t WriteMemoryCallbackMeter(void *contents, size_t size, size_t nmemb
   return realsize;
 }
 
-void turn_gateway_on(int hub) {
-   CURL *curl = NULL;
-   CURLcode res;
+int get_hardware_address() {
+	
+	/* Get the zigbee radio's mac address from the gateway */
+	
+	CURL *curl = NULL;
+	CURLcode res;
+	parse_buffer = NULL; // Clear the parse buffer in case next time we cannot read meter as we don't want the previous values in it
+		
+	/* Initialize the network interface (winsock) */
+	curl_global_init(CURL_GLOBAL_ALL);
 
-   /* Turn the gateway's power switch on */
+	/* Get a curl handle */
+	curl = curl_easy_init();
+
+	if (!curl) {
+		printf("\n%sget_hardware_address: failed to get a curl handle.\n", ctime(&mytime));
+		curl_global_cleanup();
+		return 0;  
+	}
+
+   /* Set the URL that is about to receive our POST. */
+   curl_easy_setopt(curl, CURLOPT_URL, RAINFOREST);
    
-   /* Initialize the network interface (winsock) */
-   curl_global_init(CURL_GLOBAL_ALL);
-
-   /* Get a curl handle */
-
-   curl = curl_easy_init();
-
-   if (!curl) {
-	  printf("\n%sturn_on_gateway: failed to get a curl handle to hard reboot the gateway to turn it on.\n", ctime(&mytime));
-	  curl_global_cleanup();
-	  return;
-   }
+   /* Set the username and password */
+   curl_easy_setopt(curl, CURLOPT_USERNAME, USERNAME);
+   curl_easy_setopt(curl, CURLOPT_PASSWORD, PASSWORD);
    
-   curl_easy_setopt(curl, CURLOPT_URL, gateway_on_url2);
+   /* Add all the custom headers */
+   struct curl_slist *chunk = NULL;
+   chunk = curl_slist_append(chunk, CONTENT_TYPE);
+   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+
+   /* Specify we want to POST data */
+   curl_easy_setopt(curl, CURLOPT_POST, 1L);
+
+   /* Send the POST Body to this function  */
+   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallbackMeter);
+
+   /* Pass 'chunk' struct to the callback function */
+   curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+   /* Set the POST Body data */
+   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, ha_post_body);
 
    if (DEBUG) {
 	  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-   }  else {
+   } else {
 	  curl_easy_setopt(curl, CURLOPT_VERBOSE, 0);
    }
 
    /* Perform the request, res will get the return code */
    res = curl_easy_perform(curl);
-
-   /* Check for errors */
-
-   if (res != CURLE_OK) {
-	  curl_easy_cleanup(curl);
-	  curl_global_cleanup();
-	  printf("\n%sturn_on_gateway: curl_easy_perform() failed to hard reboot the gateway to turn it on: %s.\n", ctime(&mytime), curl_easy_strerror(res));
-	  return;
-   }
-
+   
+   /* Free the custom headers */
+   curl_slist_free_all(chunk);
    curl_easy_cleanup(curl);
    curl_global_cleanup();
-}
-
-void turn_gateway_off(int hub) {
-   CURL *curl = NULL;
-   CURLcode res;
-
-   /* Turn the gateway's power switch off */
-	  
-   /* Initialize the network interface (winsock) */
-   curl_global_init(CURL_GLOBAL_ALL);
-
-   /* Get a curl handle */
-   curl = curl_easy_init();
- 
-   if (!curl) {
-	  printf("\n%sturn_off_gateway: failed to get a curl handle to hard reboot the gateway to turn it off.\n", ctime(&mytime));
-	  curl_global_cleanup();
-	  return;
-   }
-
-   curl_easy_setopt(curl, CURLOPT_URL, gateway_off_url2);
-
-   if (DEBUG) {
-	  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-   }  else {
-	  curl_easy_setopt(curl, CURLOPT_VERBOSE, 0);
-   }
-
-   /* Perform the request, res will get the return code */
-   res = curl_easy_perform(curl);
-
+   
    /* Check for errors */
-
    if (res != CURLE_OK) {
-	  curl_easy_cleanup(curl);
-	  curl_global_cleanup();
-	  printf("\n%sturn_off_gateway: curl_easy_perform() failed to hard reboot the gateway to turn it off: %s.\n", ctime(&mytime), curl_easy_strerror(res));
-	  return;
+	  printf("\n%sget_hardware_address: curl_easy_perform() failed: %s.\n", ctime(&mytime), curl_easy_strerror(res));
+	  return 0;
+   }
+   if (!parse_buffer) {
+	  printf("\n%sget_hardware_address: parse_buffer is NULL.\n", ctime(&mytime));
+      return 0;
+   }
+   if (!strstr(parse_buffer, "<HardwareAddress>")) { //If no Hardware Address field
+	  printf("\n%sNo <HardwareAddress> token in POST response:\n%s", ctime(&mytime), parse_buffer);
+	  return 0;
    }
    
-   curl_easy_cleanup(curl);
-   curl_global_cleanup();
-}
+   /* Parse out the hardware address */
+   strncpy(hardware_address, strstr(parse_buffer, "<HardwareAddress>") + strlen("<HardwareAddress>"), 18);
+   hardware_address[18] = '\0';
+   
+   /* Create the POST body */
+   strcpy(meter_post_body, meter_post_body_pre);
+   strcat(meter_post_body, hardware_address);
+   strcat(meter_post_body, meter_post_body_suf);
 
-void reboot_gateway() {
-	turn_gateway_off(HUB2);
-	printf("\n%sTurned the gateway switch off.\n", ctime(&mytime));
-	printf("\n%sWaiting 5 seconds before turning gateway switch back on...\n", ctime(&mytime));
-	sleep(5);
-	turn_gateway_on(HUB2);
-	printf("\n%sTurned the gateway switch back on.\n", ctime(&mytime));
-	sleep(60); // Allow time for the gateway to reboot
-	printf("\n%sWaiting 60 seconds before reading the meter to allow the gateway to reboot...\n", ctime(&mytime));
+   return 1;
 }
 
 int get_meter_reading() {
@@ -376,20 +324,7 @@ int get_meter_reading() {
 
 	char *start_demand;
 	char *end_demand;
-	char *start_multiplier;
-	char *end_multiplier;
-	char *start_divisor;
-	char *end_divisor;
-
 	char demand_string[11];
-	char multiplier_string[11];
-	char divisor_string[11];
-
-	double demand = 0;
-	double demand_tmp;
-	double multiplier;
-	double divisor;
-	
 	actual_demand = 0;   // Set the demand to 0kW in case we can't read the meter
 	parse_buffer = NULL; // Clear the parse buffer in case next time we cannot read meter as we don't want the previous values in it
 
@@ -405,19 +340,17 @@ int get_meter_reading() {
 		return 0;  // Didn't get a clean meter reading so return error
 	}
 
-   struct curl_slist *chunk = NULL;
-
-   /* Add all the custom headers */
-   chunk = curl_slist_append(chunk, "Content-Type: text/xml");
-   chunk = curl_slist_append(chunk, "Cloud-Id: *****");
-   chunk = curl_slist_append(chunk, "User: foobar@gmail.com");
-   chunk = curl_slist_append(chunk, "Password: ******");
-
-   /* Set our custom set of headers */
-   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
-
    /* Set the URL that is about to receive our POST. */
-   curl_easy_setopt(curl, CURLOPT_URL, "https://rainforestcloud.com:9445/cgi-bin/post_manager");
+   curl_easy_setopt(curl, CURLOPT_URL, RAINFOREST);
+   
+   /* Set the username and password */
+   curl_easy_setopt(curl, CURLOPT_USERNAME, USERNAME);
+   curl_easy_setopt(curl, CURLOPT_PASSWORD, PASSWORD);
+   
+   /* Add all the custom headers */
+   struct curl_slist *chunk = NULL;
+   chunk = curl_slist_append(chunk, CONTENT_TYPE);
+   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
 
    /* Specify we want to POST data */
    curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -439,94 +372,39 @@ int get_meter_reading() {
 
    /* Perform the request, res will get the return code */
    res = curl_easy_perform(curl);
-
-   /* Check for errors */
-   if (res != CURLE_OK) {
-	  curl_slist_free_all(chunk);
-	  curl_easy_cleanup(curl);
-	  curl_global_cleanup();
-	  printf("\n%sget_meter_reading: curl_easy_perform() failed: %s.\n", ctime(&mytime), curl_easy_strerror(res));
-	  return 0;  // Didn't get a clean meter reading so return error
-   }
-
+   
    /* Free the custom headers */
    curl_slist_free_all(chunk);
    curl_easy_cleanup(curl);
    curl_global_cleanup();
-
-   if (parse_buffer) {
-	 /* Sometimes the parse_buffer does not have the <Demand> token in it so have to bail out, but check possible other responses as well. */
-	   if (!strstr(parse_buffer, "<Demand>")) {
-		  printf("\n%sNo <Demand> token in POST response:\n%s\n", ctime(&mytime), parse_buffer); 
-		  
-		  if (strstr(parse_buffer, "Request Timeout")) { // If timeout then Rainforest gateway needs to be rebooted
-			 printf("\n%sRebooting the gateway since a Request Timeout response was received.\n", ctime(&mytime));
-			 reboot_gateway();
-			 sendmail(REBOOT_GATEWAY_TIMEOUT);
-		  }
-		  if (strstr(parse_buffer, "Service Unavailable")) { // If unavailable then Rainforest gateway needs to be rebooted
-			 printf("\n%sRebooting the gateway since a Service Unavailable response was received.\n", ctime(&mytime));
-			 reboot_gateway();
-			 sendmail(REBOOT_GATEWAY_UNAVAILABLE);
-		  }
-		  return 0;  // Didn't get a clean meter reading so return error
-	   }
-	   
-	   /*
-		  Parse the XML that is returned in the POST Response to search for the <Demand> token value.
-		  Must also get the <Multiplier> and <Divisor> values and do the math to get the actual
-		  kilowatts being consumed.
-
-		  The actual Demand value is calculated by using the multiplier and divisor: 5944 x 1 / 1000 = 5.944
-		  If the multiplier or divisor is zero then use a value of one instead.
-	   */
-
-	   start_demand = strstr(parse_buffer, "<Demand>") + strlen("<Demand>");
-	   end_demand = strchr(start_demand, '<');
-	   strncpy(demand_string, start_demand, end_demand - start_demand);
-	   demand_string[end_demand - start_demand] = '\0';
-	   demand = atof(demand_string);
-
-	   if (demand_string[2]=='f') {        // If meter is negative, then the demand number is very high since all leading zeros are f's,
-		  demand_tmp = atof("0xffffffff"); //  so if the first letter after the "0x" is an 'f' then correct it using these three lines of code
-		  demand = demand_tmp - demand;
-		  demand = demand * -1;
-	   }
-
-	   /* Parse out the multiplier */
-	   start_multiplier = strstr(parse_buffer, "<Multiplier>") + strlen("<Multiplier>");
-	   end_multiplier = strchr(start_multiplier, '<');
-	   strncpy(multiplier_string, start_multiplier, end_multiplier - start_multiplier);
-	   multiplier_string[end_multiplier - start_multiplier] = '\0';
-	   multiplier = atof(multiplier_string);
-	   if (multiplier == 0) {
-		  multiplier = 1;
-	   }
-
-	   /* Parse out the divisor */
-	   start_divisor = strstr(parse_buffer, "<Divisor>") + strlen("<Divisor>");
-	   end_divisor = strchr(start_divisor, '<');
-	   strncpy(divisor_string, start_divisor, end_divisor - start_divisor);
-	   divisor_string[end_divisor - start_divisor] = '\0';
-	   divisor = atof(divisor_string);
-	   if (divisor == 0) {
-		  divisor = 1;
-	   }
-
-	   /* Now do the calculation to get the actual usage */
-	   actual_demand = (demand * multiplier) / divisor;
-
-	   if (DEBUG) {
-		 printf("\ndemand_string: %s\nmultiplier_string: %s\ndivisor_string: %s\n", demand_string, multiplier_string, divisor_string);
-		 printf("\ndemand: %.0f\nmultiplier: %.0f\ndivisor: %.0f\nactual_demand: %.3f\n\n", demand, multiplier, divisor, actual_demand);
-	   }
-	   return 1;
+   
+   /* Check for errors */
+   if (res != CURLE_OK) {
+	  printf("\n%sget_meter_reading: curl_easy_perform() failed: %s.\n", ctime(&mytime), curl_easy_strerror(res));
+	  return 0;  // Didn't get a clean meter reading so return error
    }
-   printf("\n%sget_meter_reading: parse_buffer is NULL.\n", ctime(&mytime));
-   return 0;
+
+   if (!parse_buffer) {
+	  printf("\n%sget_meter_reading: parse_buffer is NULL.\n", ctime(&mytime));
+      return 0;
+   }
+   /* Sometimes the parse_buffer does not have the <zigbee:InstantaneousDemand> token in it so have to bail out */
+   if (!strstr(parse_buffer, "<Value>")) {
+	  printf("\n%sNo <Value> token for the <zigbee:InstantaneousDemand> token in POST response:\n%s", ctime(&mytime), parse_buffer + 600);
+	  return 0;  // Didn't get a clean meter reading so return error
+   }
+   /*
+	  Parse the XML that is returned in the POST Response to search for the <Value> token after the <zigbee:InstantaneousDemand> token
+   */
+   start_demand = strstr(parse_buffer, "<Value>") + strlen("<Value>");
+   end_demand = strchr(start_demand, '<');
+   strncpy(demand_string, start_demand, end_demand - start_demand);
+   demand_string[end_demand - start_demand] = '\0';
+   actual_demand = atof(demand_string); // Convert the text to numeric
+   return 1;
 }
 
-int switch_charger(int mode, int top, int hub) {
+int switch_charger(int mode) {
 
     /*  This funtion will turn the switch on or off. It returns the following:
         1 = Successfully turned the switch on
@@ -544,26 +422,20 @@ int switch_charger(int mode, int top, int hub) {
 	curl = curl_easy_init();
 
 	if (!curl) {
-	   printf("\n%sswitch_charger: failed to get a curl handle to turn the EV charger switch on or off.\n", ctime(&mytime));
+	   if (mode == ON) {
+		   printf("\n%sswitch_charger: failed to get a curl handle to turn EV charger switch on.\n", ctime(&mytime));
+	   } else {
+		   printf("\n%sswitch_charger: failed to get a curl handle to turn EV charger switch off.\n", ctime(&mytime));
+	   }
 	   curl_global_cleanup();
 	   return -1;
     }
 
    /* Set the URL */
    if (mode == ON) {
-	  if (top == ON) {
-
-		 curl_easy_setopt(curl, CURLOPT_URL, switch_on_top_url2);
-
-	  } else {
-
-	    curl_easy_setopt(curl, CURLOPT_URL, switch_on_url2);
-
-	  }
+		curl_easy_setopt(curl, CURLOPT_URL, switch_on_url);
    } else {
-
-	   curl_easy_setopt(curl, CURLOPT_URL, switch_off_url2);
-
+		  curl_easy_setopt(curl, CURLOPT_URL, switch_off_url);
    }
 
    if (DEBUG) {
@@ -577,10 +449,12 @@ int switch_charger(int mode, int top, int hub) {
 
    /* Check for errors */
    if (res != CURLE_OK) {
-	  curl_easy_cleanup(curl);
-	  curl_global_cleanup();
-	  printf("\n%sswitch_charger: curl_easy_perform() failed turning the EV charger switch on or off: %s.\n", ctime(&mytime), curl_easy_strerror(res));
-	  return -1;
+	  if (mode == ON) {
+	     printf("\n%sswitch_charger: curl_easy_perform() failed turning EV charger switch on: %s.\n", ctime(&mytime), curl_easy_strerror(res));
+	  } else {
+		  printf("\n%sswitch_charger: curl_easy_perform() failed turning EV charger switch off: %s.\n", ctime(&mytime), curl_easy_strerror(res));
+      }
+	  mode = -1;
    }
 
    curl_easy_cleanup(curl);
@@ -607,8 +481,8 @@ static size_t payload_source_on(void *ptr, size_t size, size_t nmemb, void *user
   if(data) {
     size_t len = strlen(data);
     memcpy(ptr, data, len);
-	if (strstr(data, "Turned the EV charger switch on as the solar")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
+	if (strstr(data, "Turned EV charger switch on as the solar")) {
+		sprintf(reading, "\r\nMeter reading: %.3f kW.\r\n", actual_demand);
 		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
 		upload_ctx->lines_read++;
         return (strlen((char *)ptr));
@@ -635,8 +509,8 @@ static size_t payload_source_on(void *ptr, size_t size, size_t nmemb, void *user
   if(data) {
     size_t len = strlen(data);
     memcpy(ptr, data, len);
-	if (strstr(data, "Could not turn the EV charger switch on")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
+	if (strstr(data, "Could not turn EV charger switch on")) {
+		sprintf(reading, "\r\nMeter reading: %.3f kW.\r\n", actual_demand);
 		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
 		upload_ctx->lines_read++;
         return (strlen((char *)ptr));
@@ -663,8 +537,8 @@ static size_t payload_source_off_current(void *ptr, size_t size, size_t nmemb, v
   if(data) {
     size_t len = strlen(data);
     memcpy(ptr, data, len);
-	if (strstr(data, "Turned the EV charger switch off as the combined")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
+	if (strstr(data, "Turned EV charger switch off as the house")) {
+		sprintf(reading, "\r\nMeter reading: %.3f kW.\r\n", actual_demand);
 		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
 		upload_ctx->lines_read++;
         return (strlen((char *)ptr));
@@ -691,8 +565,8 @@ static size_t payload_source_off_value(void *ptr, size_t size, size_t nmemb, voi
   if(data) {
     size_t len = strlen(data);
     memcpy(ptr, data, len);
-	if (strstr(data, "Turned the EV charger switch off as it is not")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
+	if (strstr(data, "Turned EV charger switch off as it is not")) {
+		sprintf(reading, "\r\nMeter reading: %.3f kW.\r\n", actual_demand);
 		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
 		upload_ctx->lines_read++;
         return (strlen((char *)ptr));
@@ -705,7 +579,7 @@ static size_t payload_source_off_value(void *ptr, size_t size, size_t nmemb, voi
   return 0;
 }
 
-static size_t payload_source_off_startup(void *ptr, size_t size, size_t nmemb, void *userp)
+static size_t payload_source_on_meter(void *ptr, size_t size, size_t nmemb, void *userp)
 {
   struct upload_status *upload_ctx = (struct upload_status *)userp;
   const char *data;
@@ -714,7 +588,29 @@ static size_t payload_source_off_startup(void *ptr, size_t size, size_t nmemb, v
     return 0;
   }
 
-  data = payload_text_off_startup[upload_ctx->lines_read];
+  data = payload_text_on_meter[upload_ctx->lines_read];
+
+  if(data) {
+    size_t len = strlen(data);
+    memcpy(ptr, data, len);
+
+    upload_ctx->lines_read++;
+
+    return len;
+  }
+
+  return 0;
+}
+static size_t payload_source_on_startup(void *ptr, size_t size, size_t nmemb, void *userp)
+{
+  struct upload_status *upload_ctx = (struct upload_status *)userp;
+  const char *data;
+
+  if((size == 0) || (nmemb == 0) || ((size*nmemb) < 1)) {
+    return 0;
+  }
+
+  data = payload_text_on_startup[upload_ctx->lines_read];
 
   if(data) {
     size_t len = strlen(data);
@@ -742,8 +638,8 @@ static size_t payload_source_off_error(void *ptr, size_t size, size_t nmemb, voi
   if(data) {
     size_t len = strlen(data);
     memcpy(ptr, data, len);
-	if (strstr(data, "Could not turn the EV charger switch off")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
+	if (strstr(data, "Could not turn EV charger switch off")) {
+		sprintf(reading, "\r\nMeter reading: %.3f kW.\r\n", actual_demand);
 		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
 		upload_ctx->lines_read++;
         return (strlen((char *)ptr));
@@ -770,8 +666,8 @@ static size_t payload_source_on_vc(void *ptr, size_t size, size_t nmemb, void *u
   if(data) {
     size_t len = strlen(data);
     memcpy(ptr, data, len);
-	if (strstr(data, "Turned the EV charger switch on as it is now")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
+	if (strstr(data, "Turned EV charger switch on as it is now")) {
+		sprintf(reading, "\r\nMeter reading: %.3f kW.\r\n", actual_demand);
 		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
 		upload_ctx->lines_read++;
         return (strlen((char *)ptr));
@@ -798,72 +694,12 @@ static size_t payload_source_on_vc_error(void *ptr, size_t size, size_t nmemb, v
   if(data) {
     size_t len = strlen(data);
     memcpy(ptr, data, len);
-	if (strstr(data, "Could not turn the EV charger switch on during")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
+	if (strstr(data, "Could not turn EV charger switch on during")) {
+		sprintf(reading, "\r\nMeter reading: %.3f kW.\r\n", actual_demand);
 		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
 		upload_ctx->lines_read++;
         return (strlen((char *)ptr));
     }
-    upload_ctx->lines_read++;
-
-    return len;
-  }
-
-  return 0;
-}
-
-static size_t payload_source_reboot_timeout(void *ptr, size_t size, size_t nmemb, void *userp)
-{
-  struct upload_status *upload_ctx = (struct upload_status *)userp;
-  const char *data;
-
-  if((size == 0) || (nmemb == 0) || ((size*nmemb) < 1)) {
-    return 0;
-  }
-
-  data = payload_text_reboot_timeout[upload_ctx->lines_read];
-
-  if(data) {
-    size_t len = strlen(data);
-    memcpy(ptr, data, len);
-	/* No need to print meter reading as there is none hence having to reboot
-	if (strstr(data, "Rebooted the")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
-		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
-		upload_ctx->lines_read++;
-        return (strlen((char *)ptr));
-    }
-	*/
-    upload_ctx->lines_read++;
-
-    return len;
-  }
-
-  return 0;
-}
-
-static size_t payload_source_reboot_unavailable(void *ptr, size_t size, size_t nmemb, void *userp)
-{
-  struct upload_status *upload_ctx = (struct upload_status *)userp;
-  const char *data;
-
-  if((size == 0) || (nmemb == 0) || ((size*nmemb) < 1)) {
-    return 0;
-  }
-
-  data = payload_text_reboot_unavailable[upload_ctx->lines_read];
-
-  if(data) {
-    size_t len = strlen(data);
-    memcpy(ptr, data, len);
-	/* No need to print meter reading as there is none hence having to reboot
-	if (strstr(data, "Rebooted the")) {
-		sprintf(reading, " Meter reading: %.3f kW.\r\n", actual_demand);
-		memcpy(ptr+(strlen(data)-2), reading, strlen(reading));
-		upload_ctx->lines_read++;
-        return (strlen((char *)ptr));
-    }
-	*/
     upload_ctx->lines_read++;
 
     return len;
@@ -884,28 +720,27 @@ void sendmail(int event) {
   curl_global_init(CURL_GLOBAL_ALL);
   curl = curl_easy_init();
 
-  	if (!curl) {
-	   printf("\n%ssendmail: failed to get a curl handle to send email.\n", ctime(&mytime));
-	   curl_global_cleanup();
-	   return;
-    }
+  if (!curl) {
+	printf("\n%ssendmail: failed to get a curl handle to send email.\n", ctime(&mytime));
+	curl_global_cleanup();
+	return;
+  }
 
-    /* Set the URL for the mailserver */
-	curl_easy_setopt(curl, CURLOPT_URL, "smtps://smtp.gmail.com");
+  /* Set the URL for the mailserver */
+  curl_easy_setopt(curl, CURLOPT_URL, GMAIL_SERVER);
 
-	/* Set username and password */
-    curl_easy_setopt(curl, CURLOPT_USERNAME, EMAIL);
-	curl_easy_setopt(curl, CURLOPT_PASSWORD, PWD);
+  /* Set username and password */
+  curl_easy_setopt(curl, CURLOPT_USERNAME, USER);
+  curl_easy_setopt(curl, CURLOPT_PASSWORD, PWD);
 
-    /* Set FROM address */
-	curl_easy_setopt(curl, CURLOPT_MAIL_FROM, EMAIL);
+  /* Set FROM address */
+  curl_easy_setopt(curl, CURLOPT_MAIL_FROM, FROM);
 
-	/* Set to use SSL */
-	curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
+  /* Set to use SSL */
+  curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
 
     /* Add recipient(s) */
-//    recipients = curl_slist_append(recipients, EMAIL);	// email
-	recipients = curl_slist_append(recipients, TEXT);	// text message
+	recipients = curl_slist_append(recipients, TO);	// text message
     curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
 
     /* We're using a callback function to specify the payload (the headers and body of the message */
@@ -919,8 +754,8 @@ void sendmail(int event) {
 		case OFF_VALUE:
 			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_off_value);
 			break;
-		case OFF_STARTUP:
-			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_off_startup);
+		case ON_STARTUP:
+			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_on_startup);
 			break;
 		case ON_ERROR:
 			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_on_error);
@@ -931,14 +766,11 @@ void sendmail(int event) {
 		case ON_VC:
 			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_on_vc);
 			break;
+		case ON_METER:
+			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_on_meter);
+			break;
 		case ON_VC_ERROR:
 			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_on_vc_error);
-			break;
-		case REBOOT_GATEWAY_TIMEOUT:
-			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_reboot_timeout);
-			break;
-		case REBOOT_GATEWAY_UNAVAILABLE:
-			curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source_reboot_unavailable);
 			break;
 	}
 
@@ -956,7 +788,7 @@ void sendmail(int event) {
 
     /* Check for errors */
     if (res != CURLE_OK)
-       printf("\n%scurl_easy_perform() failed: %s.\n", ctime(&mytime), curl_easy_strerror(res));
+       printf("\n%scurl_easy_perform() failed sending email: %s.\n", ctime(&mytime), curl_easy_strerror(res));
 
     /* Free the list of recipient(s) */
     curl_slist_free_all(recipients);
@@ -968,109 +800,103 @@ void sendmail(int event) {
 
 int main() {
 
-    int current_mode = OFF; // Start in the off state
-
-	/* Get current date and time */
-	mytime = time(NULL);
-
-	/* Parse out time components */
+    int current_mode = ON_STARTUP; // Set the current state of the charger switch to startup mode
+	
+	/* First, try to turn the EV switch on. If fails, then wait 1 minute and keep trying */
+	mytime = time(NULL); // Get current date and time and parse out time components
 	timeinfo = localtime(&mytime);
-	
-	/* First, turn the gateway switch on to ensure the gateway is running (it should always be on as no other automation controllers manage it). */
-	
-	turn_gateway_on(HUB2);
-	printf("\n%sTurned the gateway switch on at startup.\n", ctime(&mytime));
-	
-	/* Next, we need to know if the EV charger switch is on or off so we will turn it off, wait to
-       allow the meter to recognize the change, then start our endless while loop. */
-
-	if (switch_charger(OFF, OFF, HUB2) != OFF) {
-		printf("\n%sCould not turn the EV charger switch off at startup.\n", ctime(&mytime));
-		exit(-1);
-	} 
-	
-	printf("\n%sTurned the EV charger switch off at startup.\n", ctime(&mytime));
-	sendmail(OFF_STARTUP);
-	
-	printf("\n%sWaiting 60 seconds before reading the meter to allow the gateway to boot up...\n", ctime(&mytime));
-	sleep(60); // Wait for the gateway to boot
-	
-    while (1) {
-
-		/* Get current date and time */
-		mytime = time(NULL);
-
-		/* Parse out time components */
+	printf("\n%sTurning on EV charger switch at startup...\n", ctime(&mytime));
+	while (1) {
+		mytime = time(NULL); // Get current date and time and parse out time components
 		timeinfo = localtime(&mytime);
-
+		if (switch_charger(ON) != ON) {
+			printf("\n%sCould not turn EV charger switch on at startup.\nTrying again in 1 minute...\n", ctime(&mytime));
+			sleep(60);
+		} else {
+			break;
+		}
+	}
+	printf("\n%sTurned EV charger switch on at startup.\n", ctime(&mytime));
+	
+	/* Now, read the gateway for the meter's Hardware Address */
+    mytime = time(NULL); // Get current date and time and parse out time components
+	timeinfo = localtime(&mytime);
+	printf("\n%sReading the gateway for the meter's Hardware Address at startup...\n", ctime(&mytime));
+	while (1) {
+		mytime = time(NULL); // Get current date and time and parse out time components
+		timeinfo = localtime(&mytime);
+		if (!get_hardware_address()) {
+			printf("\n%sCould not get the meter's Hardware Address from the gateway at startup.\nTrying again in 1 minute...\n", ctime(&mytime));
+			sleep(60);
+		} else {
+			break;
+		}
+	}
+    printf("\n%sRead the meter's Hardware Address at startup: %s\n", ctime(&mytime), hardware_address);
+   
+	/* Start our endless while loop of checking the time and meter reading and turning the switch on or off accordingly */
+    while (1) {
+		/* Get current date and time and parse out components */
+		mytime = time(NULL);
+		timeinfo = localtime(&mytime);
+		    
+		/* Get the meter reading */
+		if (!get_meter_reading()) {
+			sleep(SLEEP_SECONDS); // Couldn't read meter so wait until next time to check again
+			continue;
+		} 			
 		/* If the current time of day is in the Value Charge time frame, then turn the EV charger switch on */
 		if ((timeinfo->tm_hour < VALUE_CHARGE_END_HOUR) || (timeinfo->tm_hour >= VALUE_CHARGE_START_HOUR)) {
-			if (switch_charger(ON, OFF, HUB2) != ON) { // Turn EV charger switch on
-				printf("\n%sCould not turn the EV charger switch on during PG&E's lowest cost tier's time period.\n", ctime(&mytime));
+			if (switch_charger(ON) != ON) { // Turn EV charger switch on
+				printf("\n%sCould not turn EV charger switch on during PG&E's lowest cost tier.\n", ctime(&mytime));
 				sendmail(ON_VC_ERROR);
+				sleep(SLEEP_SECONDS); // Wait until next time to check again
 				continue;
 		    } else {
-			   if (current_mode != ON_VC) {
-				   printf("\n%sTurned the EV charger switch on as it is now in PG&E's lowest cost tier's time period.\n", ctime(&mytime));
+			   if (current_mode == OFF) {
+				   printf("\n%sTurned EV charger switch on as it is now in PG&E's lowest cost tier.\n", ctime(&mytime));
 				   sendmail(ON_VC);
-				   current_mode = ON_VC;
-			    }
-			   
-			   if (get_meter_reading()) {
-				   printf("\n%sMeter reading: %.3f kW. EV charger switch is on (Value Charge time period).\n", ctime(&mytime), actual_demand);
 			   }
-            }
+			   current_mode = ON_VC; // Set to indicate on during the Value Charge period
+			}
+			printf("\n%sMeter reading: %.3f kW.\nEV charger switch is on (Value Charge time period).\n", ctime(&mytime), actual_demand);
 		} else {
-		
-		    if (get_meter_reading()) {  /* Otherwise, get the meter reading and determine if need to turn on or off the EV charger switch */
-			    /* If the EV charger switch is currently ON, then don't include the EV_CHARGING_CURRENT in the below if statement equation, but do if OFF */
-			    if ((current_mode == ON && (actual_demand <= SWITCHING_THRESHOLD)) ||
-				   (current_mode == OFF && ((actual_demand + EV_CHARGING_CURRENT) <= SWITCHING_THRESHOLD))) {
-
-
-				  if (switch_charger (ON, OFF, HUB2) == ON) {
-					 
+			/* If the EV charger switch is currently ON, then don't include the EV_CHARGING_CURRENT in the below if statement equation, but do if OFF */
+			if ((current_mode == ON && (actual_demand <= SWITCHING_THRESHOLD)) ||
+			   (current_mode == OFF && ((actual_demand + EV_CHARGING_CURRENT) <= SWITCHING_THRESHOLD))) {
+				if (switch_charger(ON) == ON) { // Turn EV charger switch on
 					if (current_mode == OFF) {
-					   printf("\n%sTurned the EV charger switch on as the solar panels are generating more than the house usage plus the EV charger usage.\n", ctime(&mytime));
-					   sendmail(ON);
+					  printf("\n%sTurned EV charger switch on as the solar panels are generating more than the house usage plus the EV charger usage.\n", ctime(&mytime));
+					  sendmail(ON);
 					}
 					current_mode = ON; // Set state to on
-				 
-					printf("\n%sMeter reading: %.3f kW.\nEV charger switch is on.\n", ctime(&mytime), actual_demand);
-			  
-				  }  else {
-				    printf("\n%sCould not turn the EV charger switch on.\n", ctime(&mytime));
-				    sendmail(ON_ERROR);
-				    continue;
-				  }	
-				  
-			    } else {
-					
-				  if (switch_charger(OFF, OFF, HUB2) == OFF) {
-					  
+				} else {
+					printf("\n%sCould not turn EV charger switch on.\n", ctime(&mytime));
+					sendmail(ON_ERROR);
+				}				  
+			} else {
+				if (switch_charger(OFF) == OFF) { // Turn EV charger switch off
 					if (current_mode == ON_VC) {
-					  printf("\n%sTurned the EV charger switch off as it is not in PG&E's lowest cost tier's time period.\n", ctime(&mytime));
-					  sendmail(OFF_VALUE);
+					   printf("\n%sTurned EV charger switch off as it is not in PG&E's lowest cost tier.\n", ctime(&mytime));
+					   sendmail(OFF_VALUE);
 					} else {
-					   if (current_mode == ON) {
-						  printf("\n%sTurned the EV charger switch off as the combined current usage plus the EV charger usage is more than %d kW.\n", ctime(&mytime), SWITCHING_THRESHOLD);
-						  sendmail(OFF_CURRENT);
-					   }
-					}
-					
-					current_mode = OFF; // Set state to off
-								 	 
-				    printf("\n%sMeter reading: %.3f kW.\nEV charger switch is off.\n", ctime(&mytime), actual_demand);
-					
-				 } else {
-					 printf("\n%sCould not turn the EV charger switch off.\n", ctime(&mytime));
-					 sendmail(OFF_ERROR);
-					 continue;
-				 }		 
-			   }
+						if (current_mode == ON) {
+						   printf("\n%sTurned EV charger switch off as the house usage plus the EV charger usage is more than %d kW.\n", ctime(&mytime), SWITCHING_THRESHOLD);
+						   sendmail(OFF_CURRENT);
+						}
+					}				
+					current_mode = OFF; // Set state to off								 
+				} else {
+					printf("\n%sCould not turn EV charger switch off.\n", ctime(&mytime));
+					sendmail(OFF_ERROR);
+				}
 			}
-		}
-				
-		sleep(SLEEP_SECONDS);   // Wait until next time to check again
+			if (current_mode == ON || current_mode == ON_VC) {
+				printf("\n%sMeter reading: %.3f kW.\nEV charger switch is on.\n", ctime(&mytime), actual_demand);
+			} else {
+				printf("\n%sMeter reading: %.3f kW.\nEV charger switch is off.\n", ctime(&mytime), actual_demand);
+			}
+		}				
+		sleep(SLEEP_SECONDS); // Wait until next time to check again
 	}
 }
